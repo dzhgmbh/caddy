@@ -1,0 +1,10 @@
+*
+!/caddy
+!/caddyfile
+!/caddyhttp
+!/caddytls
+!/onevent
+!/telemetry
+!/vendor
+!/*.go
+*_test.go
