@@ -181,27 +181,52 @@ func stapleOCSP(cert *Certificate, pemBundle []byte) error {
 // to the parameters in config. It then caches the certificate
 // in our cache.
 func makeSelfSignedCert(config *Config) error {
-	// start by generating private key
-	var privKey interface{}
-	var err error
-	switch config.KeyType {
-	case "", acme.EC256:
-		privKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	case acme.EC384:
-		privKey, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
-	case acme.RSA2048:
-		privKey, err = rsa.GenerateKey(rand.Reader, 2048)
-	case acme.RSA4096:
-		privKey, err = rsa.GenerateKey(rand.Reader, 4096)
-	case acme.RSA8192:
-		privKey, err = rsa.GenerateKey(rand.Reader, 8192)
-	default:
-		return fmt.Errorf("cannot generate private key; unknown key type %v", config.KeyType)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to generate private key: %v", err)
-	}
+	if config.CACert == "" {
+	    // start by generating private key
+        var privKey interface{}
+        var err error
+        switch config.KeyType {
+        case "", acme.EC256:
+            privKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+        case acme.EC384:
+            privKey, err = ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+        case acme.RSA2048:
+            privKey, err = rsa.GenerateKey(rand.Reader, 2048)
+        case acme.RSA4096:
+            privKey, err = rsa.GenerateKey(rand.Reader, 4096)
+        case acme.RSA8192:
+            privKey, err = rsa.GenerateKey(rand.Reader, 8192)
+        default:
+            return fmt.Errorf("cannot generate private key; unknown key type %v", config.KeyType)
+        }
+        if err != nil {
+            return fmt.Errorf("failed to generate private key: %v", err)
+        }
+	} else {
+	    // load CA public key
+	    pemBlock, rest := pem.Decode(config.CACert)
+        if pemBlock == nil {
+            return errors.New("failed to decode PEM block containing public key from CA certificate")
+        }
+        caCert, err := x509.ParseCertificate(pemBlock.Bytes)
+        if err != nil {
+            return fmt.Errorf("failed to parse CA certificate from PEM block: %v", err)
+        }
 
+        // load CA private key
+        pemBlock, rest = pem.Decode(config.CAKey)
+        if pemBlock == nil {
+            return errors.New("failed to decode PEM block containing private key from CA key")
+        }
+        der, err := x509.DecryptPEMBlock(pemBlock, []byte(config.CAPassword))
+        if err != nil {
+            return fmt.Errorf("failed to decrypt PEM block containing private key from CA key: %v", err)
+        }
+        privKey, err := x509.ParsePKCS1PrivateKey(der)
+        if err != nil {
+            return fmt.Errorf("failed to parse RSA private key from CA key DER: %v", err)
+        }
+	}
 	// create certificate structure with proper values
 	notBefore := time.Now()
 	notAfter := notBefore.Add(24 * time.Hour * 7)
@@ -227,6 +252,12 @@ func makeSelfSignedCert(config *Config) error {
 		cert.DNSNames = append(cert.DNSNames, strings.ToLower(config.Hostname))
 	}
 
+	if config.CACert == "" {
+	    caCert := cert
+	} else {
+	    cert.Issuer, cert.Subject = caCert.Subject, caCert.Subject
+	}
+
 	publicKey := func(privKey interface{}) interface{} {
 		switch k := privKey.(type) {
 		case *rsa.PrivateKey:
@@ -237,7 +268,7 @@ func makeSelfSignedCert(config *Config) error {
 			return errors.New("unknown key type")
 		}
 	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, cert, cert, publicKey(privKey), privKey)
+	derBytes, err := x509.CreateCertificate(rand.Reader, cert, caCert, publicKey(privKey), privKey)
 	if err != nil {
 		return fmt.Errorf("could not create certificate: %v", err)
 	}

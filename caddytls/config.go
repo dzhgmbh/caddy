@@ -84,6 +84,12 @@ type Config struct {
 	// that we generated in memory for convenience
 	SelfSigned bool
 
+	CACert string
+
+	CAKey string
+
+	CAPassword string
+
 	// The endpoint of the directory for the ACME
 	// CA we are to use
 	CAUrl string

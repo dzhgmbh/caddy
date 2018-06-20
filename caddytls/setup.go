@@ -93,10 +93,31 @@ func setupTLS(c *caddy.Controller) error {
 			switch c.Val() {
 			case "ca":
 				arg := c.RemainingArgs()
-				if len(arg) != 1 {
-					return c.ArgErr()
+				if len(args) == 1 {
+				    config.CAUrl = arg[0]
+				} else if len(args) <= 3 {
+				    value, err = ioutil.ReadFile(arg[0])
+                    if err != nil {
+                        return c.Errf("Unable to load CA certificate file '%s': %v", c.Val(), err)
+                    }
+                    config.CACert = value
+
+                    value, err = ioutil.ReadFile(arg[1])
+                    if err != nil {
+                        return c.Errf("Unable to load CA key file '%s': %v", c.Val(), err)
+                    }
+                    config.CAKey = value
+
+                    if len(args) == 3 {
+                        value, err = ioutil.ReadFile(arg[2])
+                        if err != nil {
+                            return c.Errf("Unable to load CA certificate password file '%s': %v", c.Val(), err)
+                        }
+                        config.CAPassword = value
+                    }
+				} else {
+				    return c.ArgErr()
 				}
-				config.CAUrl = arg[0]
 			case "key_type":
 				arg := c.RemainingArgs()
 				value, ok := supportedKeyTypes[strings.ToUpper(arg[0])]
