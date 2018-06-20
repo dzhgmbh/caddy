@@ -37,6 +37,7 @@ import (
 
 	_ "github.com/mholt/caddy/caddyhttp" // plug in the HTTP server type
 	// This is where other plugins get plugged in (imported)
+	_ "github.com/lucaslorentz/caddy-docker-proxy/plugin"
 )
 
 func init() {
