@@ -290,6 +290,12 @@ var (
 	// It's very important to set this unless you set it in every Config.
 	DefaultCAUrl string
 
+	DefaultCACert string
+
+	DefaultCAKey string
+
+	DefaultCAPasswordFile string
+
 	// DefaultKeyType is used as the type of key for new certificates
 	// when no other key type is specified.
 	DefaultKeyType = acme.RSA2048

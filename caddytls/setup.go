@@ -59,6 +59,8 @@ func setupTLS(c *caddy.Controller) error {
 
 	config.Enabled = true
 
+	caCert, caKey, caPasswordFile := DefaultCACert, DefaultCAKey, DefaultCAPasswordFile
+
 	for c.Next() {
 		var certificateFile, keyFile, loadDir, maxCerts, askURL string
 
@@ -92,11 +94,19 @@ func setupTLS(c *caddy.Controller) error {
 			hadBlock = true
 			switch c.Val() {
 			case "ca":
-				arg := c.RemainingArgs()
-				if len(arg) != 1 {
-					return c.ArgErr()
+				args := c.RemainingArgs()
+				if len(args) == 1 {
+				    config.CAUrl = args[0]
+				} else if len(args) <= 3 {
+				    caCert = args[0]
+				    caKey = args[1]
+
+                    if len(args) == 3 {
+                        caPasswordFile = args[2]
+                    }
+				} else {
+				    return c.ArgErr()
 				}
-				config.CAUrl = arg[0]
 			case "key_type":
 				arg := c.RemainingArgs()
 				value, ok := supportedKeyTypes[strings.ToUpper(arg[0])]
@@ -231,6 +241,28 @@ func setupTLS(c *caddy.Controller) error {
 		// tls requires at least one argument if a block is not opened
 		if len(args) == 0 && !hadBlock {
 			return c.ArgErr()
+		}
+
+		if config.SelfSigned == true && caCert != "" {
+		    value, err := ioutil.ReadFile(caCert)
+            if err != nil {
+                return c.Errf("Unable to load CA certificate file '%s': %v", caCert, err)
+            }
+            config.CACert = value
+
+            value, err = ioutil.ReadFile(caKey)
+            if err != nil {
+                return c.Errf("Unable to load CA key file '%s': %v", caKey, err)
+            }
+            config.CAKey = value
+
+            if caPasswordFile != "" {
+                value, err = ioutil.ReadFile(caPasswordFile)
+                if err != nil {
+                    return c.Errf("Unable to load CA certificate password file '%s': %v", caPasswordFile, err)
+                }
+                config.CAPassword = bytes.TrimSuffix(value, []byte("\n"))
+            }
 		}
 
 		// set certificate limit if on-demand TLS is enabled

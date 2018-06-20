@@ -45,6 +45,9 @@ func init() {
 
 	flag.BoolVar(&caddytls.Agreed, "agree", false, "Agree to the CA's Subscriber Agreement")
 	flag.StringVar(&caddytls.DefaultCAUrl, "ca", "https://acme-v02.api.letsencrypt.org/directory", "URL to certificate authority's ACME server directory")
+	flag.StringVar(&caddytls.DefaultCACert, "ca-cert", "", "Path to certificate authority's certificate file to use for self-signed certificates")
+	flag.StringVar(&caddytls.DefaultCAKey, "ca-key", "", "Path to certificate authority's key file to use for self-signed certificates")
+	flag.StringVar(&caddytls.DefaultCAPasswordFile, "ca-password-file", "", "Path to certificate authority's password file to use for self-signed certificates")
 	flag.BoolVar(&caddytls.DisableHTTPChallenge, "disable-http-challenge", caddytls.DisableHTTPChallenge, "Disable the ACME HTTP challenge")
 	flag.BoolVar(&caddytls.DisableTLSSNIChallenge, "disable-tls-sni-challenge", caddytls.DisableTLSSNIChallenge, "Disable the ACME TLS-SNI challenge")
 	flag.StringVar(&disabledMetrics, "disabled-metrics", "", "Comma-separated list of telemetry metrics to disable")
