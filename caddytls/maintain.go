@@ -110,7 +110,7 @@ func RenewManagedCertificates(allowPrompts bool) (err error) {
 				log.Printf("[ERROR] No associated TLS config for certificate with names %v; unable to manage", cert.Names)
 				continue
 			}
-			if !cert.configs[0].Managed || cert.configs[0].SelfSigned {
+			if !cert.configs[0].Managed && !cert.configs[0].SelfSigned {
 				continue
 			}
 
@@ -128,12 +128,16 @@ func RenewManagedCertificates(allowPrompts bool) (err error) {
 				// instance of Caddy that didn't coordinate with this one; if so, just load it (this
 				// might happen if another instance already renewed it - kinda sloppy but checking disk
 				// first is a simple way to possibly drastically reduce rate limit problems)
-				storedCertExpiring, err := managedCertInStorageExpiresSoon(cert)
+				var storedCertExpiring bool
+				var err error
+				if !cert.configs[0].SelfSigned {
+				    storedCertExpiring, err = managedCertInStorageExpiresSoon(cert)
+				}
 				if err != nil {
 					// hmm, weird, but not a big deal, maybe it was deleted or something
 					log.Printf("[NOTICE] Error while checking if certificate for %v in storage is also expiring soon: %v",
 						cert.Names, err)
-				} else if !storedCertExpiring {
+				} else if !storedCertExpiring && !cert.configs[0].SelfSigned {
 					// if the certificate is NOT expiring soon and there was no error, then we
 					// are good to just reload the certificate from storage instead of repeating
 					// a likely-unnecessary renewal procedure
@@ -154,20 +158,20 @@ func RenewManagedCertificates(allowPrompts bool) (err error) {
 		}
 		certCache.RUnlock()
 
-		// Reload certificates that merely need to be updated in memory
-		for _, oldCert := range reloadQueue {
-			timeLeft := oldCert.NotAfter.Sub(time.Now().UTC())
-			log.Printf("[INFO] Certificate for %v expires in %v, but is already renewed in storage; reloading stored certificate",
-				oldCert.Names, timeLeft)
+        // Reload certificates that merely need to be updated in memory
+        for _, oldCert := range reloadQueue {
+            timeLeft := oldCert.NotAfter.Sub(time.Now().UTC())
+            log.Printf("[INFO] Certificate for %v expires in %v, but is already renewed in storage; reloading stored certificate",
+                oldCert.Names, timeLeft)
 
-			err = certCache.reloadManagedCertificate(oldCert)
-			if err != nil {
-				if allowPrompts {
-					return err // operator is present, so report error immediately
-				}
-				log.Printf("[ERROR] Loading renewed certificate: %v", err)
-			}
-		}
+            err = certCache.reloadManagedCertificate(oldCert)
+            if err != nil {
+                if allowPrompts {
+                    return err // operator is present, so report error immediately
+                }
+                log.Printf("[ERROR] Loading renewed certificate: %v", err)
+            }
+        }
 
 		// Renewal queue
 		for _, oldCert := range renewQueue {
@@ -183,7 +187,13 @@ func RenewManagedCertificates(allowPrompts bool) (err error) {
 			renewName := oldCert.Names[0]
 
 			// perform renewal
-			err := oldCert.configs[0].RenewCert(renewName, allowPrompts)
+			var newCert Certificate
+			var err error
+			if oldCert.configs[0].SelfSigned {
+			    newCert, err = makeSelfSignedCert(oldCert.configs[0])
+			} else {
+                err = oldCert.configs[0].RenewCert(renewName, allowPrompts)
+			}
 			if err != nil {
 				if allowPrompts {
 					// Certificate renewal failed and the operator is present. See a discussion
@@ -207,7 +217,11 @@ func RenewManagedCertificates(allowPrompts bool) (err error) {
 
 			// successful renewal, so update in-memory cache by loading
 			// renewed certificate so it will be used with handshakes
-			err = certCache.reloadManagedCertificate(oldCert)
+			if oldCert.configs[0].SelfSigned {
+			    err = certCache.replaceCertificate(oldCert, newCert)
+			} else {
+			    err = certCache.reloadManagedCertificate(oldCert)
+			}
 			if err != nil {
 				if allowPrompts {
 					return err // operator is present, so report error immediately

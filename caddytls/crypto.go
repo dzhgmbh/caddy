@@ -180,7 +180,8 @@ func stapleOCSP(cert *Certificate, pemBundle []byte) error {
 // makeSelfSignedCert makes a self-signed certificate according
 // to the parameters in config. It then caches the certificate
 // in our cache.
-func makeSelfSignedCert(config *Config) error {
+func makeSelfSignedCert(config *Config) (Certificate, error) {
+	var certificate Certificate
 	var caCert *x509.Certificate
 	var privKey interface{}
 	var err error
@@ -198,43 +199,43 @@ func makeSelfSignedCert(config *Config) error {
         case acme.RSA8192:
             privKey, err = rsa.GenerateKey(rand.Reader, 8192)
         default:
-            return fmt.Errorf("cannot generate private key; unknown key type %v", config.KeyType)
+            return certificate, fmt.Errorf("cannot generate private key; unknown key type %v", config.KeyType)
         }
         if err != nil {
-            return fmt.Errorf("failed to generate private key: %v", err)
+            return certificate, fmt.Errorf("failed to generate private key: %v", err)
         }
 	} else {
 	    // load CA public key
 	    pemBlock, _ := pem.Decode(config.CACert)
         if pemBlock == nil {
-            return errors.New("failed to decode PEM block containing public key from CA certificate")
+            return certificate, errors.New("failed to decode PEM block containing public key from CA certificate")
         }
         caCert, err = x509.ParseCertificate(pemBlock.Bytes)
         if err != nil {
-            return fmt.Errorf("failed to parse CA certificate from PEM block: %v", err)
+            return certificate, fmt.Errorf("failed to parse CA certificate from PEM block: %v", err)
         }
 
         // load CA private key
         pemBlock, _ = pem.Decode(config.CAKey)
         if pemBlock == nil {
-            return errors.New("failed to decode PEM block containing private key from CA key")
+            return certificate, errors.New("failed to decode PEM block containing private key from CA key")
         }
         der, err := x509.DecryptPEMBlock(pemBlock, config.CAPassword)
         if err != nil {
-            return fmt.Errorf("failed to decrypt PEM block containing private key from CA key: %v", err)
+            return certificate, fmt.Errorf("failed to decrypt PEM block containing private key from CA key: %v", err)
         }
         privKey, err = x509.ParsePKCS1PrivateKey(der)
         if err != nil {
-            return fmt.Errorf("failed to parse RSA private key from CA key DER: %v", err)
+            return certificate, fmt.Errorf("failed to parse RSA private key from CA key DER: %v", err)
         }
 	}
 	// create certificate structure with proper values
 	notBefore := time.Now()
-	notAfter := notBefore.Add(24 * time.Hour * 7)
+	notAfter := notBefore.Add(24 * time.Hour * 90)
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
 	if err != nil {
-		return fmt.Errorf("failed to generate serial number: %v", err)
+		return certificate, fmt.Errorf("failed to generate serial number: %v", err)
 	}
 	cert := &x509.Certificate{
 		SerialNumber: serialNumber,
@@ -271,23 +272,23 @@ func makeSelfSignedCert(config *Config) error {
 	}
 	derBytes, err := x509.CreateCertificate(rand.Reader, cert, caCert, publicKey(privKey), privKey)
 	if err != nil {
-		return fmt.Errorf("could not create certificate: %v", err)
+		return certificate, fmt.Errorf("could not create certificate: %v", err)
 	}
 
 	chain := [][]byte{derBytes}
+	certificate = Certificate{
+        Certificate: tls.Certificate{
+            Certificate: chain,
+            PrivateKey:  privKey,
+            Leaf:        cert,
+        },
+        Names:    names,
+        NotAfter: cert.NotAfter,
+        Hash:     hashCertificateChain(chain),
+    }
+	config.cacheCertificate(certificate)
 
-	config.cacheCertificate(Certificate{
-		Certificate: tls.Certificate{
-			Certificate: chain,
-			PrivateKey:  privKey,
-			Leaf:        cert,
-		},
-		Names:    names,
-		NotAfter: cert.NotAfter,
-		Hash:     hashCertificateChain(chain),
-	})
-
-	return nil
+	return certificate, nil
 }
 
 // RotateSessionTicketKeys rotates the TLS session ticket keys
