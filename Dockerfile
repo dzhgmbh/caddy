@@ -3,12 +3,13 @@ FROM golang:1.10.3-alpine as build
 RUN apk add --no-cache \
     git
 
-RUN go get github.com/caddyserver/builds
-RUN go get github.com/lucaslorentz/caddy-docker-proxy/plugin
+RUN go get \
+        github.com/caddyserver/builds \
+        github.com/lucaslorentz/caddy-docker-proxy/plugin
 
 WORKDIR $GOPATH/src/github.com/mholt/caddy/caddy
 
-COPY . $GOPATH/src/github.com/mholt/caddy/
+COPY . ../
 
 RUN go run build.go && \
     cp caddy /
