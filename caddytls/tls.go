@@ -51,45 +51,25 @@ var privateIPBlocks []*net.IPNet
 // as they conform to CABF requirements (only one wildcard
 // label, and it must be the left-most label).
 func HostQualifies(hostname string) bool {
-	if !strings.Contains(hostname, "*") &&
-		!strings.HasPrefix(hostname, ".") &&
-		!strings.HasSuffix(hostname, ".") {
-		if ip := net.ParseIP(hostname); ip != nil {
-			return !isPrivateIP(ip)
-		}
-
-		ips, err := net.LookupIP(hostname)
-
-		if err != nil {
-			return false
-		}
-
-		for _, ip := range ips {
-			if isPrivateIP(ip) {
-				return false
-			}
-		}
-
-		return true
-	}
-
-	return hostname != "localhost" && // localhost is ineligible
-
-		// hostname must not be empty
-		strings.TrimSpace(hostname) != "" &&
-
-		// only one wildcard label allowed, and it must be left-most
-		(!strings.Contains(hostname, "*") ||
-			(strings.Count(hostname, "*") == 1 &&
-				strings.HasPrefix(hostname, "*."))) &&
-
-		// must not start or end with a dot
-		!strings.HasPrefix(hostname, ".") &&
-		!strings.HasSuffix(hostname, ".") &&
-
+	if ip := net.ParseIP(hostname); ip != nil {
 		// cannot be an IP address, see
 		// https://community.letsencrypt.org/t/certificate-for-static-ip/84/2?u=mholt
-		net.ParseIP(hostname) == nil
+		return false
+	}
+
+	ips, err := net.LookupIP(hostname)
+
+	if err != nil {
+		return false
+	}
+
+	for _, ip := range ips {
+		if isPrivateIP(ip) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func isPrivateIP(ip net.IP) bool {
