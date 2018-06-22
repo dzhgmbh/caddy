@@ -18,6 +18,8 @@ FROM scratch
 
 EXPOSE 80 443 2015
 
+WORKDIR .caddy
+
 COPY --from=build /caddy /bin/
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 

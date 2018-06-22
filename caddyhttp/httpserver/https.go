@@ -21,6 +21,7 @@ import (
 
 	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/caddytls"
+	"github.com/mholt/caddy/telemetry"
 )
 
 func activateHTTPS(cctx caddy.Context) error {
@@ -37,7 +38,7 @@ func activateHTTPS(cctx caddy.Context) error {
 
 	// place certificates and keys on disk
 	for _, c := range ctx.siteConfigs {
-		if c.TLS.OnDemand {
+		if c.TLS.OnDemand || c.TLS.SelfSigned {
 			continue // obtain these certificates on-demand instead
 		}
 		err := c.TLS.ObtainCert(c.TLS.Hostname, operatorPresent)
@@ -80,8 +81,14 @@ func activateHTTPS(cctx caddy.Context) error {
 // the TLS config to true.
 func markQualifiedForAutoHTTPS(configs []*SiteConfig) {
 	for _, cfg := range configs {
-		if caddytls.QualifiesForManagedTLS(cfg) && cfg.Addr.Scheme != "http" {
+		if cfg.Addr.Scheme == "http" || !cfg.TLS.Enabled {
+			continue
+		}
+
+		if caddytls.QualifiesForManagedTLS(cfg) {
 			cfg.TLS.Managed = true
+		} else {
+			cfg.TLS.SelfSigned = true
 		}
 	}
 }
@@ -95,7 +102,12 @@ func markQualifiedForAutoHTTPS(configs []*SiteConfig) {
 // value will always be nil.
 func enableAutoHTTPS(configs []*SiteConfig, loadCertificates bool) error {
 	for _, cfg := range configs {
-		if cfg == nil || cfg.TLS == nil || !cfg.TLS.Managed || cfg.TLS.OnDemand {
+		if cfg == nil || cfg.TLS == nil || (!cfg.TLS.Managed && !cfg.TLS.SelfSigned) || cfg.TLS.OnDemand {
+			if cfg.Addr.Port == "" {
+				cfg.Addr.Scheme = "http"
+				cfg.Addr.Port = HTTPPort
+			}
+
 			continue
 		}
 		cfg.TLS.Enabled = true
@@ -110,10 +122,20 @@ func enableAutoHTTPS(configs []*SiteConfig, loadCertificates bool) error {
 		// Make sure any config values not explicitly set are set to default
 		caddytls.SetDefaultTLSParams(cfg.TLS)
 
+		if cfg.TLS.SelfSigned {
+			_, err := caddytls.MakeSelfSignedCert(cfg.TLS)
+
+			if err != nil {
+				return fmt.Errorf("self-signed: %v", err)
+			}
+
+			telemetry.Increment("tls_self_signed_count")
+		}
+
 		// Set default port of 443 if not explicitly set
 		if cfg.Addr.Port == "" &&
 			cfg.TLS.Enabled &&
-			(!cfg.TLS.Manual || cfg.TLS.OnDemand) &&
+			(!cfg.TLS.Manual || cfg.TLS.OnDemand || cfg.TLS.SelfSigned) &&
 			cfg.Addr.Host != "localhost" {
 			cfg.Addr.Port = HTTPSPort
 		}
@@ -129,7 +151,7 @@ func enableAutoHTTPS(configs []*SiteConfig, loadCertificates bool) error {
 // all configs.
 func makePlaintextRedirects(allConfigs []*SiteConfig) []*SiteConfig {
 	for i, cfg := range allConfigs {
-		if cfg.TLS.Managed &&
+		if (cfg.TLS.Managed || cfg.TLS.SelfSigned) &&
 			!hostHasOtherPort(allConfigs, i, HTTPPort) &&
 			(cfg.Addr.Port == HTTPSPort || !hostHasOtherPort(allConfigs, i, HTTPSPort)) {
 			allConfigs = append(allConfigs, redirPlaintextHost(cfg))

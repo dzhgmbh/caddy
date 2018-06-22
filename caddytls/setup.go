@@ -29,10 +29,23 @@ import (
 
 	"github.com/mholt/caddy"
 	"github.com/mholt/caddy/telemetry"
+	"net"
 )
 
 func init() {
 	caddy.RegisterPlugin("tls", caddy.Plugin{Action: setupTLS})
+
+	for _, cidr := range []string{
+		"127.0.0.0/8",    // IPv4 loopback
+		"10.0.0.0/8",     // RFC1918
+		"172.16.0.0/12",  // RFC1918
+		"192.168.0.0/16", // RFC1918
+		"::1/128",        // IPv6 loopback
+		"fe80::/10",      // IPv6 link-local
+	} {
+		_, block, _ := net.ParseCIDR(cidr)
+		privateIPBlocks = append(privateIPBlocks, block)
+	}
 }
 
 // setupTLS sets up the TLS configuration and installs certificates that
@@ -58,8 +71,6 @@ func setupTLS(c *caddy.Controller) error {
 	config.certCache = certCache
 
 	config.Enabled = true
-
-	caCert, caKey, caPasswordFile := DefaultCACert, DefaultCAKey, DefaultCAPasswordFile
 
 	for c.Next() {
 		var certificateFile, keyFile, loadDir, maxCerts, askURL string
@@ -98,11 +109,11 @@ func setupTLS(c *caddy.Controller) error {
 				if len(args) == 1 {
 				    config.CAUrl = args[0]
 				} else if len(args) <= 3 {
-				    caCert = args[0]
-				    caKey = args[1]
+				    config.CACert = args[0]
+				    config.CAKey = args[1]
 
                     if len(args) == 3 {
-                        caPasswordFile = args[2]
+                        config.CAPasswordFile = args[2]
                     }
 				} else {
 				    return c.ArgErr()
@@ -243,28 +254,6 @@ func setupTLS(c *caddy.Controller) error {
 			return c.ArgErr()
 		}
 
-		if config.SelfSigned == true && caCert != "" {
-		    value, err := ioutil.ReadFile(caCert)
-            if err != nil {
-                return c.Errf("Unable to load CA certificate file '%s': %v", caCert, err)
-            }
-            config.CACert = value
-
-            value, err = ioutil.ReadFile(caKey)
-            if err != nil {
-                return c.Errf("Unable to load CA key file '%s': %v", caKey, err)
-            }
-            config.CAKey = value
-
-            if caPasswordFile != "" {
-                value, err = ioutil.ReadFile(caPasswordFile)
-                if err != nil {
-                    return c.Errf("Unable to load CA certificate password file '%s': %v", caPasswordFile, err)
-                }
-                config.CAPassword = bytes.TrimSuffix(value, []byte("\n"))
-            }
-		}
-
 		// set certificate limit if on-demand TLS is enabled
 		if maxCerts != "" {
 			maxCertsNum, err := strconv.Atoi(maxCerts)
@@ -311,15 +300,6 @@ func setupTLS(c *caddy.Controller) error {
 	}
 
 	SetDefaultTLSParams(config)
-
-	// generate self-signed cert if needed
-	if config.SelfSigned {
-		_, err := makeSelfSignedCert(config)
-		if err != nil {
-			return fmt.Errorf("self-signed: %v", err)
-		}
-		telemetry.Increment("tls_self_signed_count")
-	}
 
 	return nil
 }

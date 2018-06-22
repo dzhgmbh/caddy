@@ -190,7 +190,7 @@ func RenewManagedCertificates(allowPrompts bool) (err error) {
 			var newCert Certificate
 			var err error
 			if oldCert.configs[0].SelfSigned {
-			    newCert, err = makeSelfSignedCert(oldCert.configs[0])
+			    newCert, err = MakeSelfSignedCert(oldCert.configs[0])
 			} else {
                 err = oldCert.configs[0].RenewCert(renewName, allowPrompts)
 			}

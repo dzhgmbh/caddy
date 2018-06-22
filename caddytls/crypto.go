@@ -177,15 +177,15 @@ func stapleOCSP(cert *Certificate, pemBundle []byte) error {
 	return nil
 }
 
-// makeSelfSignedCert makes a self-signed certificate according
+// MakeSelfSignedCert makes a self-signed certificate according
 // to the parameters in config. It then caches the certificate
 // in our cache.
-func makeSelfSignedCert(config *Config) (Certificate, error) {
+func MakeSelfSignedCert(config *Config) (Certificate, error) {
 	var certificate Certificate
 	var caCert *x509.Certificate
 	var privKey interface{}
 	var err error
-	if len(config.CACert) == 0 {
+	if config.CACert == "" {
 	    // start by generating private key
         switch config.KeyType {
         case "", acme.EC256:
@@ -206,7 +206,13 @@ func makeSelfSignedCert(config *Config) (Certificate, error) {
         }
 	} else {
 	    // load CA public key
-	    pemBlock, _ := pem.Decode(config.CACert)
+		caCertPem, err := ioutil.ReadFile(config.CACert)
+
+		if err != nil {
+			return certificate, fmt.Errorf("Unable to load CA certificate file '%s': %v", config.CACert, err)
+		}
+
+		pemBlock, _ := pem.Decode(caCertPem)
         if pemBlock == nil {
             return certificate, errors.New("failed to decode PEM block containing public key from CA certificate")
         }
@@ -216,11 +222,30 @@ func makeSelfSignedCert(config *Config) (Certificate, error) {
         }
 
         // load CA private key
-        pemBlock, _ = pem.Decode(config.CAKey)
+		caKeyPem, err := ioutil.ReadFile(config.CAKey)
+
+		if err != nil {
+			return certificate, fmt.Errorf("Unable to load CA key file '%s': %v", config.CAKey, err)
+		}
+
+        pemBlock, _ = pem.Decode(caKeyPem)
         if pemBlock == nil {
             return certificate, errors.New("failed to decode PEM block containing private key from CA key")
         }
-        der, err := x509.DecryptPEMBlock(pemBlock, config.CAPassword)
+
+        var caPassword []byte
+
+		if config.CAPasswordFile != "" {
+			caPassword, err = ioutil.ReadFile(config.CAPasswordFile)
+
+			if err != nil {
+				return certificate, fmt.Errorf("Unable to load CA certificate password file '%s': %v", config.CAPasswordFile, err)
+			}
+
+			caPassword = bytes.TrimSuffix(caPassword, []byte("\n"))
+		}
+
+        der, err := x509.DecryptPEMBlock(pemBlock, caPassword)
         if err != nil {
             return certificate, fmt.Errorf("failed to decrypt PEM block containing private key from CA key: %v", err)
         }

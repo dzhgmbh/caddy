@@ -84,11 +84,11 @@ type Config struct {
 	// that we generated in memory for convenience
 	SelfSigned bool
 
-	CACert []byte
+	CACert string
 
-	CAKey []byte
+	CAKey string
 
-	CAPassword []byte
+	CAPasswordFile string
 
 	// The endpoint of the directory for the ACME
 	// CA we are to use
@@ -181,6 +181,7 @@ func NewConfig(inst *caddy.Instance) *Config {
 		inst.StorageMu.Unlock()
 	}
 	cfg := new(Config)
+	cfg.Enabled = true
 	cfg.Certificates = make(map[string]string)
 	cfg.certCache = certCache
 	return cfg
@@ -546,6 +547,18 @@ func RegisterConfigGetter(serverType string, fn ConfigGetter) {
 // and server preferences of a server.Config if they were not previously set
 // (it does not overwrite; only fills in missing values).
 func SetDefaultTLSParams(config *Config) {
+	if config.CACert == "" {
+		config.CACert = DefaultCACert
+	}
+
+	if config.CAKey == "" {
+		config.CAKey = DefaultCAKey
+	}
+
+	if config.CAPasswordFile == "" {
+		config.CAPasswordFile = DefaultCAPasswordFile
+	}
+
 	// If no ciphers provided, use default list
 	if len(config.Ciphers) == 0 {
 		config.Ciphers = getPreferredDefaultCiphers()

@@ -33,14 +33,15 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
 	"os"
 	"path/filepath"
 	"strings"
-
+	"net"
 	"github.com/mholt/caddy"
 	"github.com/xenolf/lego/acmev2"
 )
+
+var privateIPBlocks []*net.IPNet
 
 // HostQualifies returns true if the hostname alone
 // appears eligible for automatic HTTPS. For example:
@@ -50,6 +51,28 @@ import (
 // as they conform to CABF requirements (only one wildcard
 // label, and it must be the left-most label).
 func HostQualifies(hostname string) bool {
+	if !strings.Contains(hostname, "*") &&
+		!strings.HasPrefix(hostname, ".") &&
+		!strings.HasSuffix(hostname, ".") {
+		if ip := net.ParseIP(hostname); ip != nil {
+			return !isPrivateIP(ip)
+		}
+
+		ips, err := net.LookupIP(hostname)
+
+		if err != nil {
+			return false
+		}
+
+		for _, ip := range ips {
+			if isPrivateIP(ip) {
+				return false
+			}
+		}
+
+		return true
+	}
+
 	return hostname != "localhost" && // localhost is ineligible
 
 		// hostname must not be empty
@@ -67,6 +90,15 @@ func HostQualifies(hostname string) bool {
 		// cannot be an IP address, see
 		// https://community.letsencrypt.org/t/certificate-for-static-ip/84/2?u=mholt
 		net.ParseIP(hostname) == nil
+}
+
+func isPrivateIP(ip net.IP) bool {
+	for _, block := range privateIPBlocks {
+		if block.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // saveCertResource saves the certificate resource to disk. This
