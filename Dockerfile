@@ -4,14 +4,15 @@ RUN apk add --no-cache \
     git
 
 RUN go get \
-        github.com/caddyserver/builds \
-        github.com/lucaslorentz/caddy-docker-proxy/plugin
+        github.com/caddyserver/builds
 
-WORKDIR $GOPATH/src/github.com/mholt/caddy/caddy
+WORKDIR $GOPATH/src/github.com/mholt/caddy
 
-COPY . ../
+COPY . .
 
-RUN go run build.go && \
+RUN go get -d -v ./caddy/caddymain
+RUN cd caddy && \
+    go run build.go && \
     cp caddy /
 
 FROM scratch

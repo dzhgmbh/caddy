@@ -26,7 +26,10 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
+	"github.com/radovskyb/watcher"
 	"github.com/google/uuid"
 	"github.com/klauspost/cpuid"
 	"github.com/mholt/caddy"
@@ -37,7 +40,6 @@ import (
 
 	_ "github.com/mholt/caddy/caddyhttp" // plug in the HTTP server type
 	// This is where other plugins get plugged in (imported)
-	_ "github.com/lucaslorentz/caddy-docker-proxy/plugin"
 )
 
 func init() {
@@ -64,6 +66,7 @@ func init() {
 	flag.StringVar(&serverType, "type", "http", "Type of server to run")
 	flag.BoolVar(&version, "version", false, "Show version")
 	flag.BoolVar(&validate, "validate", false, "Parse the Caddyfile but do not start the server")
+	flag.DurationVar(&watchInterval, "watch", watchInterval, "Check Caddyfile with specified interval for changes and reload configuration automatically")
 
 	caddy.RegisterCaddyfileLoader("flag", caddy.LoaderFunc(confLoader))
 	caddy.SetDefaultCaddyfileLoader("default", caddy.LoaderFunc(defaultLoader))
@@ -157,6 +160,44 @@ func Run() {
 		mustLogFatalf("%v", err)
 	}
 
+	if watchInterval != 0 {
+		caddyFileWatcher := watcher.New()
+		caddyFileWatcher.SetMaxEvents(1)
+		caddyFileWatcher.FilterOps(watcher.Write)
+
+		err = caddyFileWatcher.Add(conf)
+
+		if err != nil {
+			mustLogFatalf("%v", err)
+		}
+
+		reload()
+
+		go func() {
+			for {
+				select {
+				case <-caddyFileWatcher.Event:
+					log.Printf("[INFO] Caddyfile changed")
+					reload()
+				case err := <-caddyFileWatcher.Error:
+					if err == watcher.ErrWatchedFileDeleted {
+						continue
+					}
+
+					log.Print("[ERROR] %v", err)
+				case <-caddyFileWatcher.Closed:
+					return
+				}
+			}
+		}()
+
+		err = caddyFileWatcher.Start(watchInterval)
+
+		if err != nil {
+			mustLogFatalf("%v", err)
+		}
+	}
+
 	// Execute instantiation events
 	caddy.EmitEvent(caddy.InstanceStartupEvent, instance)
 
@@ -179,9 +220,13 @@ func Run() {
 		telemetry.Set("container", containerized)
 	}
 	telemetry.StartEmitting()
-
 	// Twiddle your thumbs
 	instance.Wait()
+}
+
+func reload() {
+	self, _ := os.FindProcess(os.Getpid())
+	self.Signal(syscall.SIGUSR1)
 }
 
 // mustLogFatalf wraps log.Fatalf() in a way that ensures the
@@ -422,6 +467,7 @@ var (
 	version         bool
 	plugins         bool
 	validate        bool
+	watchInterval   time.Duration
 	disabledMetrics string
 )
 
