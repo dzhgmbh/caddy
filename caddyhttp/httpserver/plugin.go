@@ -667,9 +667,9 @@ const (
 	// DefaultRoot is the default root folder.
 	DefaultRoot = "."
 	// DefaultHTTPPort is the default port for HTTP.
-	DefaultHTTPPort = "80"
+	DefaultHTTPPort = "8080"
 	// DefaultHTTPSPort is the default port for HTTPS.
-	DefaultHTTPSPort = "443"
+	DefaultHTTPSPort = "8443"
 )
 
 // These "soft defaults" are configurable by

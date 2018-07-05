@@ -13,15 +13,19 @@ COPY . .
 RUN go get -d -v ./caddy/caddymain
 RUN cd caddy && \
     go run build.go && \
-    cp caddy /
+    cp caddy / && \
+    mkdir /.caddy
 
 FROM scratch
 
-EXPOSE 80 443 2015
+EXPOSE 8080 8443 2015
 
-WORKDIR .caddy
-
+COPY --from=build --chown=65534 /.caddy /.caddy
 COPY --from=build /caddy /bin/
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+USER 65534
+
+WORKDIR .caddy
 
 ENTRYPOINT ["/bin/caddy"]

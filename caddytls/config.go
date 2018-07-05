@@ -697,11 +697,11 @@ var defaultCurves = []tls.CurveID{
 const (
 	// HTTPChallengePort is the officially designated port for
 	// the HTTP challenge according to the ACME spec.
-	HTTPChallengePort = "80"
+	HTTPChallengePort = "8080"
 
 	// TLSSNIChallengePort is the officially designated port for
 	// the TLS-SNI challenge according to the ACME spec.
-	TLSSNIChallengePort = "443"
+	TLSSNIChallengePort = "8443"
 
 	// DefaultHTTPAlternatePort is the port on which the ACME
 	// client will open a listener and solve the HTTP challenge.
