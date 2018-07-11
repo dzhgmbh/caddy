@@ -1,5 +1,6 @@
 *
 !.git
+!autoipfilter
 !caddy
 !caddyfile
 !caddyhttp

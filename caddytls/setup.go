@@ -44,7 +44,7 @@ func init() {
 		"fe80::/10",      // IPv6 link-local
 	} {
 		_, block, _ := net.ParseCIDR(cidr)
-		privateIPBlocks = append(privateIPBlocks, block)
+		PrivateIpBlocks = append(PrivateIpBlocks, block)
 	}
 }
 

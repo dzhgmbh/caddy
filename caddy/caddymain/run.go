@@ -39,6 +39,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	_ "github.com/mholt/caddy/caddyhttp" // plug in the HTTP server type
+	_ "github.com/mholt/caddy/autoipfilter"
 	// This is where other plugins get plugged in (imported)
 )
 

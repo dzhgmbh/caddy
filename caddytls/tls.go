@@ -41,7 +41,7 @@ import (
 	"github.com/xenolf/lego/acmev2"
 )
 
-var privateIPBlocks []*net.IPNet
+var PrivateIpBlocks []*net.IPNet
 
 // HostQualifies returns true if the hostname alone
 // appears eligible for automatic HTTPS. For example:
@@ -73,7 +73,7 @@ func HostQualifies(hostname string) bool {
 }
 
 func isPrivateIP(ip net.IP) bool {
-	for _, block := range privateIPBlocks {
+	for _, block := range PrivateIpBlocks {
 		if block.Contains(ip) {
 			return true
 		}

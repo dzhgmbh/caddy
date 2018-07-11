@@ -619,6 +619,7 @@ var directives = []string{
 	"filter",       // github.com/echocat/caddy-filter
 	"minify",       // github.com/hacdias/caddy-minify
 	"ipfilter",     // github.com/pyed/ipfilter
+	"autoipfilter", // github.com/mholt/caddy/autoipfilter
 	"ratelimit",    // github.com/xuqingfeng/caddy-rate-limit
 	"expires",      // github.com/epicagency/caddy-expires
 	"forwardproxy", // github.com/caddyserver/forwardproxy
